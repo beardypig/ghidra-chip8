@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<processor_spec>
+  <programcounter register="pc"/>
+
+  <volatile outputop="write" inputop="read">
+    <!-- Set the dt and st registers to volatile because they are decremented on a timer -->
+    <range space="register" first="0x30" last="0x31"/>
+    <!-- Mark key as volatile too -->
+    <range space="register" first="0x40" last="0x40"/>
+  </volatile>
+
+  <register_data>
+    <register name="key" hidden="true"/>
+  </register_data>
+
+  <default_symbols>
+    <symbol name="start" address="200" entry="true"/>
+  </default_symbols>
+
+  <default_memory_blocks>
+    <memory_block name="font" start_address="0" length="80" initialized="true"/>
+    <memory_block name="stack" start_address="0xfa0" length="0x60" initialized="false"/>
+  </default_memory_blocks>
+</processor_spec>

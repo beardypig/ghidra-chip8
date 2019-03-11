@@ -1,0 +1,552 @@
+define endian=big;
+define alignment=2;
+
+# The address space is 4096 bytes, so needs 2 byte addresses
+define space mem        type=ram_space      size=2  default;
+define space register   type=register_space size=1;
+
+# register layout doesn't really matter much, none of these registers overlap
+#                                     general purpose registers
+define register offset=0x00 size=1  [ v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 va vb vc vd ve vf ];
+define register offset=0x20 size=2  [ pc sp i ];
+define register offset=0x30 size=1  [ dt st ];
+# fake register for key presses
+define register offset=0x40 size=1  [ key ];
+
+# all of the opcodes are 16 bits and immediate values are encoded in the opcode
+define token opcode (16)
+   op      = (12,15)
+   op16    = (0,15)
+
+   nnn     = (0,11)
+   rx      = (8,11)
+   ry      = (4,7)
+   n       = (0,3)
+   kk      = (0,7)
+
+   addr    = (0,11)
+
+   imm12   = (0,11)
+   imm8    = (0,7)
+   imm4    = (0,3)
+;
+
+# rx and ry can be any of the general purpose registers
+attach variables [ rx ry ] [ v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 va vb vc vd ve vf ];
+
+define pcodeop drawSprite;
+define pcodeop rand;
+define pcodeop bcd;
+define pcodeop clearScreen;
+define pcodeop syscall;
+
+macro setFlag(value) {
+	vf = value:1;
+}
+
+macro flagCarry(a, b) {
+    local flag:1 = carry(a, b);
+    setFlag(flag);
+}
+
+macro flagBorrow(a, b) {
+    local flag:1 = !sborrow(a, b);
+    setFlag(flag);
+}
+
+macro push(val) {
+	*[mem]:2 sp = val;
+	sp = sp - 2;
+}
+
+macro pop(rval) {
+    rval = *[mem]:2 sp;
+    sp = sp + 2;
+}
+
+# skip the next instruction
+inst_skip: rel is op16 [ rel = inst_next + 2; ] {
+    export *[mem]:2 rel;
+}
+
+:ld rx, imm8       is op=6 & rx & imm8 {
+    rx = imm8;
+}
+
+:ld i, addr       is op=0xa & i & addr {
+    i = addr;
+}
+
+:drw rx, ry, imm4  is op=0xd & rx & ry & imm4 {
+    local tmp:1 = drawSprite(*[mem]:1 i, rx:1, ry:1, imm4:1);
+    vf = tmp;
+}
+
+:sys addr           is op=0x0 & addr {
+    syscall(addr:3);
+}
+
+:cls                is op=0x0 & nnn=0x0e0 {
+    clearScreen();
+}
+
+:ret                is op=0x0 & nnn=0x0ee {
+    local tmp:2;
+    pop(tmp);
+    return [tmp];
+}
+
+:jp addr            is op=0x1 & addr {
+    goto [addr:2];
+}
+
+:jp rx, addr        is op=0xb & rx & addr {
+    local rx_:2 = zext(rx);
+    goto [addr + rx_];
+}
+
+:call addr          is op=0x2 & addr {
+    push(&:2 inst_next);
+    call [addr:2];
+}
+
+:ld rx, dt          is op=0xf & rx & dt & kk=7 {
+    rx = dt;
+}
+
+:ld rx, key         is op=0xf & rx & key & kk=0xa {
+    rx = key;
+}
+
+:ld dt, rx          is op=0xf & dt & rx & kk=0x15 {
+    dt = rx;
+}
+
+:ld st, rx          is op=0xf & st & rx & kk=0x18 {
+    st = rx;
+}
+
+:add i, rx          is op=0xf & i & rx & kk=0x1e {
+    local rx_:2 = zext(rx);
+    i = i + rx_;
+}
+
+:ld "f", rx         is op=0xf & rx & kk=0x29 {
+    local rx_:2 = zext(rx);
+    i = rx_ * 5;
+}
+
+:ld "b", rx         is op=0xf & rx & kk=0x33 {
+  #*[mem]:3 i+0 = ((rx / 100) << 16);
+  #*[mem]:1 i+1 = (((rx % 100) / 10) << 8);
+  #*[mem]:1 i+2 = rx % 10;
+  *[mem]:3 i = bcd(rx);
+}
+
+# store registers in to memory
+:ld [i], v0   is op=0xf & i & rx=0 & kk=0x55 & v0 {
+    *[mem]:1 i+0 = v0;
+}
+:ld [i], v0|v1   is op=0xf & i & rx=1 & kk=0x55 & v0 & v1 {
+    *[mem]:1 i+0 = v0;
+    *[mem]:1 i+1 = v1;
+}
+:ld [i], v0|v1|v2   is op=0xf & i & rx=2 & kk=0x55 & v0 & v1 & v2 {
+    *[mem]:1 i+0 = v0;
+    *[mem]:1 i+1 = v1;
+    *[mem]:1 i+2 = v2;
+}
+:ld [i], v0|v1|v2|v3   is op=0xf & i & rx=3 & kk=0x55 & v0 & v1 & v2 & v3 {
+    *[mem]:1 i+0 = v0;
+    *[mem]:1 i+1 = v1;
+    *[mem]:1 i+2 = v2;
+    *[mem]:1 i+3 = v3;
+}
+:ld [i], v0|v1|v2|v3|v4   is op=0xf & i & rx=4 & kk=0x55 & v0 & v1 & v2 & v3 & v4 {
+    *[mem]:1 i+0 = v0;
+    *[mem]:1 i+1 = v1;
+    *[mem]:1 i+2 = v2;
+    *[mem]:1 i+3 = v3;
+    *[mem]:1 i+4 = v4;
+}
+:ld [i], v0|v1|v2|v3|v4|v5   is op=0xf & i & rx=5 & kk=0x55 & v0 & v1 & v2 & v3 & v4 & v5 {
+    *[mem]:1 i+0 = v0;
+    *[mem]:1 i+1 = v1;
+    *[mem]:1 i+2 = v2;
+    *[mem]:1 i+3 = v3;
+    *[mem]:1 i+4 = v4;
+    *[mem]:1 i+5 = v5;
+}
+:ld [i], v0|v1|v2|v3|v4|v5|v6   is op=0xf & i & rx=6 & kk=0x55 & v0 & v1 & v2 & v3 & v4 & v5 & v6 {
+    *[mem]:1 i+0 = v0;
+    *[mem]:1 i+1 = v1;
+    *[mem]:1 i+2 = v2;
+    *[mem]:1 i+3 = v3;
+    *[mem]:1 i+4 = v4;
+    *[mem]:1 i+5 = v5;
+    *[mem]:1 i+6 = v6;
+}
+:ld [i], v0|v1|v2|v3|v4|v5|v6|v7   is op=0xf & i & rx=7 & kk=0x55 & v0 & v1 & v2 & v3 & v4 & v5 & v6 & v7 {
+    *[mem]:1 i+0 = v0;
+    *[mem]:1 i+1 = v1;
+    *[mem]:1 i+2 = v2;
+    *[mem]:1 i+3 = v3;
+    *[mem]:1 i+4 = v4;
+    *[mem]:1 i+5 = v5;
+    *[mem]:1 i+6 = v6;
+    *[mem]:1 i+7 = v7;
+}
+:ld [i], v0|v1|v2|v3|v4|v5|v6|v7|v8   is op=0xf & i & rx=8 & kk=0x55 & v0 & v1 & v2 & v3 & v4 & v5 & v6 & v7 & v8 {
+    *[mem]:1 i+0 = v0;
+    *[mem]:1 i+1 = v1;
+    *[mem]:1 i+2 = v2;
+    *[mem]:1 i+3 = v3;
+    *[mem]:1 i+4 = v4;
+    *[mem]:1 i+5 = v5;
+    *[mem]:1 i+6 = v6;
+    *[mem]:1 i+7 = v7;
+    *[mem]:1 i+8 = v8;
+}
+:ld [i], v0|v1|v2|v3|v4|v5|v6|v7|v8|v9   is op=0xf & i & rx=9 & kk=0x55 & v0 & v1 & v2 & v3 & v4 & v5 & v6 & v7 & v8 & v9 {
+    *[mem]:1 i+0 = v0;
+    *[mem]:1 i+1 = v1;
+    *[mem]:1 i+2 = v2;
+    *[mem]:1 i+3 = v3;
+    *[mem]:1 i+4 = v4;
+    *[mem]:1 i+5 = v5;
+    *[mem]:1 i+6 = v6;
+    *[mem]:1 i+7 = v7;
+    *[mem]:1 i+8 = v8;
+    *[mem]:1 i+9 = v9;
+}
+:ld [i], v0|v1|v2|v3|v4|v5|v6|v7|v8|v9|va   is op=0xf & i & rx=10 & kk=0x55 & v0 & v1 & v2 & v3 & v4 & v5 & v6 & v7 & v8 & v9 & va {
+    *[mem]:1 i+0 = v0;
+    *[mem]:1 i+1 = v1;
+    *[mem]:1 i+2 = v2;
+    *[mem]:1 i+3 = v3;
+    *[mem]:1 i+4 = v4;
+    *[mem]:1 i+5 = v5;
+    *[mem]:1 i+6 = v6;
+    *[mem]:1 i+7 = v7;
+    *[mem]:1 i+8 = v8;
+    *[mem]:1 i+9 = v9;
+    *[mem]:1 i+10 = va;
+}
+:ld [i], v0|v1|v2|v3|v4|v5|v6|v7|v8|v9|va|vb   is op=0xf & i & rx=11 & kk=0x55 & v0 & v1 & v2 & v3 & v4 & v5 & v6 & v7 & v8 & v9 & va & vb {
+    *[mem]:1 i+0 = v0;
+    *[mem]:1 i+1 = v1;
+    *[mem]:1 i+2 = v2;
+    *[mem]:1 i+3 = v3;
+    *[mem]:1 i+4 = v4;
+    *[mem]:1 i+5 = v5;
+    *[mem]:1 i+6 = v6;
+    *[mem]:1 i+7 = v7;
+    *[mem]:1 i+8 = v8;
+    *[mem]:1 i+9 = v9;
+    *[mem]:1 i+10 = va;
+    *[mem]:1 i+11 = vb;
+}
+:ld [i], v0|v1|v2|v3|v4|v5|v6|v7|v8|v9|va|vb|vc   is op=0xf & i & rx=12 & kk=0x55 & v0 & v1 & v2 & v3 & v4 & v5 & v6 & v7 & v8 & v9 & va & vb & vc {
+    *[mem]:1 i+0 = v0;
+    *[mem]:1 i+1 = v1;
+    *[mem]:1 i+2 = v2;
+    *[mem]:1 i+3 = v3;
+    *[mem]:1 i+4 = v4;
+    *[mem]:1 i+5 = v5;
+    *[mem]:1 i+6 = v6;
+    *[mem]:1 i+7 = v7;
+    *[mem]:1 i+8 = v8;
+    *[mem]:1 i+9 = v9;
+    *[mem]:1 i+10 = va;
+    *[mem]:1 i+11 = vb;
+    *[mem]:1 i+12 = vc;
+}
+:ld [i], v0|v1|v2|v3|v4|v5|v6|v7|v8|v9|va|vb|vc|vd   is op=0xf & i & rx=13 & kk=0x55 & v0 & v1 & v2 & v3 & v4 & v5 & v6 & v7 & v8 & v9 & va & vb & vc & vd {
+    *[mem]:1 i+0 = v0;
+    *[mem]:1 i+1 = v1;
+    *[mem]:1 i+2 = v2;
+    *[mem]:1 i+3 = v3;
+    *[mem]:1 i+4 = v4;
+    *[mem]:1 i+5 = v5;
+    *[mem]:1 i+6 = v6;
+    *[mem]:1 i+7 = v7;
+    *[mem]:1 i+8 = v8;
+    *[mem]:1 i+9 = v9;
+    *[mem]:1 i+10 = va;
+    *[mem]:1 i+11 = vb;
+    *[mem]:1 i+12 = vc;
+    *[mem]:1 i+13 = vd;
+}
+:ld [i], v0|v1|v2|v3|v4|v5|v6|v7|v8|v9|va|vb|vc|vd|ve   is op=0xf & i & rx=14 & kk=0x55 & v0 & v1 & v2 & v3 & v4 & v5 & v6 & v7 & v8 & v9 & va & vb & vc & vd & ve {
+    *[mem]:1 i+0 = v0;
+    *[mem]:1 i+1 = v1;
+    *[mem]:1 i+2 = v2;
+    *[mem]:1 i+3 = v3;
+    *[mem]:1 i+4 = v4;
+    *[mem]:1 i+5 = v5;
+    *[mem]:1 i+6 = v6;
+    *[mem]:1 i+7 = v7;
+    *[mem]:1 i+8 = v8;
+    *[mem]:1 i+9 = v9;
+    *[mem]:1 i+10 = va;
+    *[mem]:1 i+11 = vb;
+    *[mem]:1 i+12 = vc;
+    *[mem]:1 i+13 = vd;
+    *[mem]:1 i+14 = ve;
+}
+:ld [i], v0|v1|v2|v3|v4|v5|v6|v7|v8|v9|va|vb|vc|vd|ve|vf   is op=0xf & i & rx=15 & kk=0x55 & v0 & v1 & v2 & v3 & v4 & v5 & v6 & v7 & v8 & v9 & va & vb & vc & vd & ve & vf {
+    *[mem]:1 i+0 = v0;
+    *[mem]:1 i+1 = v1;
+    *[mem]:1 i+2 = v2;
+    *[mem]:1 i+3 = v3;
+    *[mem]:1 i+4 = v4;
+    *[mem]:1 i+5 = v5;
+    *[mem]:1 i+6 = v6;
+    *[mem]:1 i+7 = v7;
+    *[mem]:1 i+8 = v8;
+    *[mem]:1 i+9 = v9;
+    *[mem]:1 i+10 = va;
+    *[mem]:1 i+11 = vb;
+    *[mem]:1 i+12 = vc;
+    *[mem]:1 i+13 = vd;
+    *[mem]:1 i+14 = ve;
+    *[mem]:1 i+15 = vf;
+}
+
+# load registers from memory
+:ld v0, [i]   is op=0xf & i & rx=0 & kk=0x65 & v0 {
+    v0 = *[mem]:1 i+0;
+}
+:ld v0|v1, [i]   is op=0xf & i & rx=1 & kk=0x65 & v0 & v1 {
+    v0 = *[mem]:1 i+0;
+    v1 = *[mem]:1 i+1;
+}
+:ld v0|v1|v2, [i]   is op=0xf & i & rx=2 & kk=0x65 & v0 & v1 & v2 {
+    v0 = *[mem]:1 i+0;
+    v1 = *[mem]:1 i+1;
+    v2 = *[mem]:1 i+2;
+}
+:ld v0|v1|v2|v3, [i]   is op=0xf & i & rx=3 & kk=0x65 & v0 & v1 & v2 & v3 {
+    v0 = *[mem]:1 i+0;
+    v1 = *[mem]:1 i+1;
+    v2 = *[mem]:1 i+2;
+    v3 = *[mem]:1 i+3;
+}
+:ld v0|v1|v2|v3|v4, [i]   is op=0xf & i & rx=4 & kk=0x65 & v0 & v1 & v2 & v3 & v4 {
+    v0 = *[mem]:1 i+0;
+    v1 = *[mem]:1 i+1;
+    v2 = *[mem]:1 i+2;
+    v3 = *[mem]:1 i+3;
+    v4 = *[mem]:1 i+4;
+}
+:ld v0|v1|v2|v3|v4|v5, [i]   is op=0xf & i & rx=5 & kk=0x65 & v0 & v1 & v2 & v3 & v4 & v5 {
+    v0 = *[mem]:1 i+0;
+    v1 = *[mem]:1 i+1;
+    v2 = *[mem]:1 i+2;
+    v3 = *[mem]:1 i+3;
+    v4 = *[mem]:1 i+4;
+    v5 = *[mem]:1 i+5;
+}
+:ld v0|v1|v2|v3|v4|v5|v6, [i]   is op=0xf & i & rx=6 & kk=0x65 & v0 & v1 & v2 & v3 & v4 & v5 & v6 {
+    v0 = *[mem]:1 i+0;
+    v1 = *[mem]:1 i+1;
+    v2 = *[mem]:1 i+2;
+    v3 = *[mem]:1 i+3;
+    v4 = *[mem]:1 i+4;
+    v5 = *[mem]:1 i+5;
+    v6 = *[mem]:1 i+6;
+}
+:ld v0|v1|v2|v3|v4|v5|v6|v7, [i]   is op=0xf & i & rx=7 & kk=0x65 & v0 & v1 & v2 & v3 & v4 & v5 & v6 & v7 {
+    v0 = *[mem]:1 i+0;
+    v1 = *[mem]:1 i+1;
+    v2 = *[mem]:1 i+2;
+    v3 = *[mem]:1 i+3;
+    v4 = *[mem]:1 i+4;
+    v5 = *[mem]:1 i+5;
+    v6 = *[mem]:1 i+6;
+    v7 = *[mem]:1 i+7;
+}
+:ld v0|v1|v2|v3|v4|v5|v6|v7|v8, [i]   is op=0xf & i & rx=8 & kk=0x65 & v0 & v1 & v2 & v3 & v4 & v5 & v6 & v7 & v8 {
+    v0 = *[mem]:1 i+0;
+    v1 = *[mem]:1 i+1;
+    v2 = *[mem]:1 i+2;
+    v3 = *[mem]:1 i+3;
+    v4 = *[mem]:1 i+4;
+    v5 = *[mem]:1 i+5;
+    v6 = *[mem]:1 i+6;
+    v7 = *[mem]:1 i+7;
+    v8 = *[mem]:1 i+8;
+}
+:ld v0|v1|v2|v3|v4|v5|v6|v7|v8|v9, [i]   is op=0xf & i & rx=9 & kk=0x65 & v0 & v1 & v2 & v3 & v4 & v5 & v6 & v7 & v8 & v9 {
+    v0 = *[mem]:1 i+0;
+    v1 = *[mem]:1 i+1;
+    v2 = *[mem]:1 i+2;
+    v3 = *[mem]:1 i+3;
+    v4 = *[mem]:1 i+4;
+    v5 = *[mem]:1 i+5;
+    v6 = *[mem]:1 i+6;
+    v7 = *[mem]:1 i+7;
+    v8 = *[mem]:1 i+8;
+    v9 = *[mem]:1 i+9;
+}
+:ld v0|v1|v2|v3|v4|v5|v6|v7|v8|v9|va, [i]   is op=0xf & i & rx=10 & kk=0x65 & v0 & v1 & v2 & v3 & v4 & v5 & v6 & v7 & v8 & v9 & va {
+    v0 = *[mem]:1 i+0;
+    v1 = *[mem]:1 i+1;
+    v2 = *[mem]:1 i+2;
+    v3 = *[mem]:1 i+3;
+    v4 = *[mem]:1 i+4;
+    v5 = *[mem]:1 i+5;
+    v6 = *[mem]:1 i+6;
+    v7 = *[mem]:1 i+7;
+    v8 = *[mem]:1 i+8;
+    v9 = *[mem]:1 i+9;
+    va = *[mem]:1 i+10;
+}
+:ld v0|v1|v2|v3|v4|v5|v6|v7|v8|v9|va|vb, [i]   is op=0xf & i & rx=11 & kk=0x65 & v0 & v1 & v2 & v3 & v4 & v5 & v6 & v7 & v8 & v9 & va & vb {
+    v0 = *[mem]:1 i+0;
+    v1 = *[mem]:1 i+1;
+    v2 = *[mem]:1 i+2;
+    v3 = *[mem]:1 i+3;
+    v4 = *[mem]:1 i+4;
+    v5 = *[mem]:1 i+5;
+    v6 = *[mem]:1 i+6;
+    v7 = *[mem]:1 i+7;
+    v8 = *[mem]:1 i+8;
+    v9 = *[mem]:1 i+9;
+    va = *[mem]:1 i+10;
+    vb = *[mem]:1 i+11;
+}
+:ld v0|v1|v2|v3|v4|v5|v6|v7|v8|v9|va|vb|vc, [i]   is op=0xf & i & rx=12 & kk=0x65 & v0 & v1 & v2 & v3 & v4 & v5 & v6 & v7 & v8 & v9 & va & vb & vc {
+    v0 = *[mem]:1 i+0;
+    v1 = *[mem]:1 i+1;
+    v2 = *[mem]:1 i+2;
+    v3 = *[mem]:1 i+3;
+    v4 = *[mem]:1 i+4;
+    v5 = *[mem]:1 i+5;
+    v6 = *[mem]:1 i+6;
+    v7 = *[mem]:1 i+7;
+    v8 = *[mem]:1 i+8;
+    v9 = *[mem]:1 i+9;
+    va = *[mem]:1 i+10;
+    vb = *[mem]:1 i+11;
+    vc = *[mem]:1 i+12;
+}
+:ld v0|v1|v2|v3|v4|v5|v6|v7|v8|v9|va|vb|vc|vd, [i]   is op=0xf & i & rx=13 & kk=0x65 & v0 & v1 & v2 & v3 & v4 & v5 & v6 & v7 & v8 & v9 & va & vb & vc & vd {
+    v0 = *[mem]:1 i+0;
+    v1 = *[mem]:1 i+1;
+    v2 = *[mem]:1 i+2;
+    v3 = *[mem]:1 i+3;
+    v4 = *[mem]:1 i+4;
+    v5 = *[mem]:1 i+5;
+    v6 = *[mem]:1 i+6;
+    v7 = *[mem]:1 i+7;
+    v8 = *[mem]:1 i+8;
+    v9 = *[mem]:1 i+9;
+    va = *[mem]:1 i+10;
+    vb = *[mem]:1 i+11;
+    vc = *[mem]:1 i+12;
+    vd = *[mem]:1 i+13;
+}
+:ld v0|v1|v2|v3|v4|v5|v6|v7|v8|v9|va|vb|vc|vd|ve, [i]   is op=0xf & i & rx=14 & kk=0x65 & v0 & v1 & v2 & v3 & v4 & v5 & v6 & v7 & v8 & v9 & va & vb & vc & vd & ve {
+    v0 = *[mem]:1 i+0;
+    v1 = *[mem]:1 i+1;
+    v2 = *[mem]:1 i+2;
+    v3 = *[mem]:1 i+3;
+    v4 = *[mem]:1 i+4;
+    v5 = *[mem]:1 i+5;
+    v6 = *[mem]:1 i+6;
+    v7 = *[mem]:1 i+7;
+    v8 = *[mem]:1 i+8;
+    v9 = *[mem]:1 i+9;
+    va = *[mem]:1 i+10;
+    vb = *[mem]:1 i+11;
+    vc = *[mem]:1 i+12;
+    vd = *[mem]:1 i+13;
+    ve = *[mem]:1 i+14;
+}
+:ld v0|v1|v2|v3|v4|v5|v6|v7|v8|v9|va|vb|vc|vd|ve|vf, [i]   is op=0xf & i & rx=15 & kk=0x65 & v0 & v1 & v2 & v3 & v4 & v5 & v6 & v7 & v8 & v9 & va & vb & vc & vd & ve & vf {
+    v0 = *[mem]:1 i+0;
+    v1 = *[mem]:1 i+1;
+    v2 = *[mem]:1 i+2;
+    v3 = *[mem]:1 i+3;
+    v4 = *[mem]:1 i+4;
+    v5 = *[mem]:1 i+5;
+    v6 = *[mem]:1 i+6;
+    v7 = *[mem]:1 i+7;
+    v8 = *[mem]:1 i+8;
+    v9 = *[mem]:1 i+9;
+    va = *[mem]:1 i+10;
+    vb = *[mem]:1 i+11;
+    vc = *[mem]:1 i+12;
+    vd = *[mem]:1 i+13;
+    ve = *[mem]:1 i+14;
+    vf = *[mem]:1 i+15;
+}
+
+:se rx, imm8        is op=3 & rx & imm8 & inst_skip {
+    if (rx==imm8) goto inst_skip;
+}
+
+:rnd rx, imm8       is op=0xc & rx & imm8 {
+    local rnd:1 = rand() & imm8;
+    rx = rnd;
+}
+
+:add rx, imm8       is op=7 & rx & imm8 {
+    rx = rx + imm8;
+    local flag:1 = carry(rx, imm8);
+    setFlag(flag);
+}
+
+:ld rx, ry          is op=8 & rx & ry & n=0 {
+    rx = ry;
+}
+
+:or rx, ry          is op=8 & rx & ry & n=1 {
+    rx = rx | ry;
+}
+
+:and rx, ry         is op=8 & rx & ry & n=2 {
+    rx = rx & ry;
+}
+
+:xor rx, ry         is op=8 & rx & ry & n=3 {
+    rx = rx ^ ry;
+}
+
+:add rx, ry         is op=8 & rx & ry & n=4 {
+    rx = rx + ry;
+    flagCarry(rx, ry);
+}
+
+:sub rx, ry         is op=8 & rx & ry & n=5 {
+    rx = rx - ry;
+    flagBorrow(rx, ry);
+}
+
+:shr rx, ry         is op=8 & rx & ry & n=6 {
+    setFlag(rx & 1);
+    rx = rx >> 1;
+}
+
+:subn rx, ry        is op=8 & rx & ry & n=7 {
+    rx = ry - rx;
+    flagBorrow(ry, rx);
+}
+
+:shl rx, ry         is op=8 & rx & ry & n=0xe {
+    setFlag(rx & 0x80);
+    rx = rx << 1;
+}
+
+:skp rx             is op=0xe & rx & kk=0x9e & inst_skip  {
+    if (key == rx) goto inst_skip;
+}
+
+:sknp rx            is op=0xe & rx & kk=0xa1 & inst_skip  {
+    if (key != rx) goto inst_skip;
+}
+
+:sne rx, imm8       is op=4 & rx & imm8 & inst_skip {
+    if (rx!=imm8) goto inst_skip;
+}
