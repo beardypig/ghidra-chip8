@@ -1,0 +1,5 @@
+dist
+*.iml
+
+data/languages/*.sla
+
