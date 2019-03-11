@@ -9,14 +9,14 @@
     <pointer_size value="2" />
   </data_organization>
 
-  <stackpointer register="sp" space="mem" growth="negative"/>
+  <stackpointer register="sp" space="mem" growth="positive"/>
 
   <returnaddress>
-    <varnode space="stack" offset="1" size="2"/>
+    <varnode space="stack" offset="0" size="2"/>
   </returnaddress>
 
   <default_proto>
-    <prototype name="default" extrapop="2" stackshift="2" strategy="register">
+    <prototype name="default" extrapop="unknown" stackshift="2" strategy="register">
       <input>
       </input>
       <output>

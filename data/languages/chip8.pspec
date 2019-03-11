@@ -16,10 +16,26 @@
 
   <default_symbols>
     <symbol name="start" address="200" entry="true"/>
+
+    <symbol name="font_char_0" address="0x00" />
+    <symbol name="font_char_1" address="0x05" />
+    <symbol name="font_char_2" address="0x0a" />
+    <symbol name="font_char_3" address="0x0f" />
+    <symbol name="font_char_4" address="0x14" />
+    <symbol name="font_char_5" address="0x19" />
+    <symbol name="font_char_6" address="0x1e" />
+    <symbol name="font_char_7" address="0x23" />
+    <symbol name="font_char_8" address="0x28" />
+    <symbol name="font_char_9" address="0x2d" />
+    <symbol name="font_char_a" address="0x32" />
+    <symbol name="font_char_b" address="0x37" />
+    <symbol name="font_char_c" address="0x3c" />
+    <symbol name="font_char_d" address="0x41" />
+    <symbol name="font_char_e" address="0x46" />
+    <symbol name="font_char_f" address="0x4b" />
   </default_symbols>
 
   <default_memory_blocks>
     <memory_block name="font" start_address="0" length="80" initialized="true"/>
-    <memory_block name="stack" start_address="0xfa0" length="0x60" initialized="false"/>
   </default_memory_blocks>
 </processor_spec>
