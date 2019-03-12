@@ -24,8 +24,6 @@ define token opcode (16)
    n       = (0,3)
    kk      = (0,7)
 
-   addr    = (0,11)
-
    imm12   = (0,11)
    imm8    = (0,7)
    imm4    = (0,3)
@@ -55,26 +53,30 @@ macro flagBorrow(a, b) {
 }
 
 macro push(val) {
-	*[mem]:2 sp = val;
+	*:2 sp = val;
 	sp = sp + 2;
 }
 
 macro pop(rval) {
-    rval = *[mem]:2 sp;
+    rval = *:2 sp;
     sp = sp - 2;
 }
 
 # skip the next instruction
-inst_skip: rel is op16 [ rel = inst_next + 2; ] {
-    export *[mem]:2 rel;
+inst_skip: rel      is op16 [ rel = inst_next + 2; ] {
+    export *:2 rel;
 }
 
-:ld rx, imm8       is op=6 & rx & imm8 {
+addr: nnn           is nnn {
+    export *:1   nnn;
+}
+
+:ld rx, imm8        is op=6 & rx & imm8 {
     rx = imm8;
 }
 
-:ld i, addr       is op=0xa & i & addr {
-    i = addr;
+:ld i, addr         is op=0xa & i & addr {
+    i = zext(addr);
 }
 
 :drw rx, ry, imm4  is op=0xd & rx & ry & imm4 {
@@ -83,7 +85,7 @@ inst_skip: rel is op16 [ rel = inst_next + 2; ] {
 }
 
 :sys addr           is op=0x0 & addr {
-    syscall(addr:2);
+    syscall(addr);
 }
 
 :cls                is op=0x0 & nnn=0x0e0 {
@@ -97,17 +99,17 @@ inst_skip: rel is op16 [ rel = inst_next + 2; ] {
 }
 
 :jp addr            is op=0x1 & addr {
-    goto [addr:2];
+    goto addr;
 }
 
-:jp rx, addr        is op=0xb & rx & addr {
+:jp rx, nnn        is op=0xb & rx & nnn {
     local rx_:2 = zext(rx);
-    goto [addr + rx_];
+    goto [nnn + rx_];
 }
 
 :call addr          is op=0x2 & addr {
     push(&:2 inst_next);
-    call [addr:2];
+    call addr;
 }
 
 :ld rx, dt          is op=0xf & rx & dt & kk=7 {
@@ -133,11 +135,14 @@ inst_skip: rel is op16 [ rel = inst_next + 2; ] {
 
 :ld "f", rx         is op=0xf & rx & kk=0x29 {
     local rx_:2 = zext(rx);
-    i = rx_ * 5;
+    i = (rx_ * 5);
 }
 
 :ld "b", rx         is op=0xf & rx & kk=0x33 {
-  *:3 i = bcd(rx);
+    local tmp:1 = rx;
+    *:1 i   = (tmp / 100);
+    *:1 i+1 = (tmp % 100) / 10;
+    *:1 i+2 = (tmp % 10);
 }
 
 # store registers in to memory

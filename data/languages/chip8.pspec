@@ -33,9 +33,12 @@
     <symbol name="font_char_d" address="0x41" />
     <symbol name="font_char_e" address="0x46" />
     <symbol name="font_char_f" address="0x4b" />
+
+    <symbol name="screen_start" address="0xea0" />
   </default_symbols>
 
   <default_memory_blocks>
     <memory_block name="font" start_address="0" length="80" initialized="true"/>
+    <memory_block name="screen" start_address="0xea0" length="0xff" initialized="true"/>
   </default_memory_blocks>
 </processor_spec>
