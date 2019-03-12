@@ -8,18 +8,21 @@
   +    - run ant
   -->
                                      
-<project name="privateBuildDeveloper" default="sleigh-compile">
+<project name="privateBuildDeveloper" default="sleighCompile">
 	
 	<property name="sleigh.compile.class" value="ghidra.pcodeCPort.slgh_compile.SleighCompile"/>
 
 	<property name="repo.dir" value="../../../.." />
 	<property name="repo.marker.dir" value="${repo.dir}/.git" />
-
+	
+	<!--Import optional ant properties.  GhidraDev Eclipse plugin produces this so this file can find the Ghidra installation-->
+	<import file="../.antProperties.xml" optional="true" />
+	
 	<condition property="devmode">
 		<available file="${repo.marker.dir}" type="dir" />
 	</condition>
 
-	<target name="build-sleigh-classpath-dev" if="devmode">
+	<target name="buildSleighClasspathDev" if="devmode">
 		
 		<property name="framework.path" value="${repo.dir}/../ghidra.git/Ghidra/Framework"/>
 		<property name="libs.path" value="${repo.dir}/../ghidra.bin.git/ExternalLibraries/libsForRuntime"/>
@@ -37,8 +40,12 @@
 			
 	</target>
 	
-	<target name="build-sleigh-classpath-dist" unless="devmode">
-		<property name="framework.path" value="../../../Framework"/>
+	<target name="buildSleighClasspathDist" unless="devmode">
+
+		<!-- If language module is detached from installation, get Ghidra installation directory path from imported properties -->
+		<condition property="framework.path" value="${ghidra.install.dir}/Ghidra/Framework" else="../../../Framework">
+			<available file="${ghidra.install.dir}" type="dir" />
+		</condition>
 		
 		<path id="sleigh.class.path">
 			<fileset dir="${framework.path}/SoftwareModeling/lib">
@@ -55,7 +62,7 @@
 			
 	</target>	
 		
-	<target name="sleigh-compile" depends="build-sleigh-classpath-dist, build-sleigh-classpath-dev">
+	<target name="sleighCompile" depends="buildSleighClasspathDist, buildSleighClasspathDev">
 	    
 		<fail unless="sleigh.compile.exists" />
 		
@@ -65,7 +72,6 @@
 			failonerror="true">
 			<jvmarg value="-Xmx2048M"/>
 			<arg value="-a"/>
-			<arg value="-l"/>
 			<arg value="./languages"/>
 		</java>
 		
