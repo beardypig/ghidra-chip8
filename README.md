@@ -9,7 +9,7 @@ To load a CHIP8 program, you need to import it as "Raw Binary", change the langu
 
 <img width="497" alt="Update settings" src="https://user-images.githubusercontent.com/16033421/54197977-9de83e00-44c5-11e9-879b-2ef04c4a54fc.png">
 
-## Build
+### Build
 
 Build using `gradle` to produce an extension zip. Update the installation path to Ghidra as appropriate.
 
@@ -17,6 +17,6 @@ Build using `gradle` to produce an extension zip. Update the installation path t
 gradle -PGHIDRA_INSTALL_DIR=$HOME/ghidra_9.0/
 ```
 
-## Install
+### Install
 
 Unpack the resulting zip in to `ghidra_9.0/Ghidra/Processors`.
