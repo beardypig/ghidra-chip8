@@ -5,5 +5,4 @@ workflow "Build Extension" {
 
 action "buildExtension" {
   uses = "beardypig/ghidra-buildExtension@master"
-  args = "buildExtension"
 }
